@@ -79,19 +79,38 @@ function removeClientByWs(ws) {
 wss.on("connection", (ws, req) => {
   const ip = getClientIp(req);
   if (!reserveIp(ws, ip)) {
-    safeSend(ws, {
+    const payload = {
       type: "info",
       message: "Erről az IP-ről már van aktív kapcsolat. (1 IP = 1 user)",
       users: getUserList(),
-    });
-    // Give the client a moment to receive the info, then close.
+    };
+
+    // Prefer closing only after the info message has been sent.
+    let closed = false;
+    try {
+      ws.send(JSON.stringify(payload), () => {
+        if (closed) return;
+        closed = true;
+        try {
+          ws.close(1008, "1 IP = 1 user");
+        } catch {
+          // ignore
+        }
+      });
+    } catch {
+      // ignore
+    }
+
+    // Fallback: don't keep it open forever if send callback never fires.
     setTimeout(() => {
+      if (closed) return;
+      closed = true;
       try {
         ws.close(1008, "1 IP = 1 user");
       } catch {
         // ignore
       }
-    }, 50);
+    }, 250);
     return;
   }
 
