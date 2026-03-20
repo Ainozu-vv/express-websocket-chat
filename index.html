@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat</title>
+</head>
+
+<body>
+    <h1>WebSocket Chat</h1>
+    <label for="username">Becenév: </label>
+    <input id="username" type="text" placeholder="Adj meg egy becenevet">
+    <button onclick="connect()">Csatlakozás</button>
+
+    <div id="chat" style="display: none;">
+        <ul id="messages"></ul>
+        <input id="messageInput" type="text" placeholder="Írj üzenetet...">
+        <button onclick="sendMessage()">Küldés</button>
+    </div>
+    <div id="userlist_div">
+        <h3>Felhasználók:</h3>
+        <ul id="userlist"></ul>
+    </div>
+
+    <script>
+        let ws;
+        let username;
+
+        function connect() {
+            username = document.getElementById("username").value.trim();
+            if (!username) {
+                alert("Adj meg egy becenevet!");
+                return;
+            }
+
+            const wsUrl = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log("✅ Kapcsolat létrejött");
+                ws.send(JSON.stringify({ type: "setName", username })); // Becenév elküldése szervernek
+                document.getElementById("chat").style.display = "block";
+            };
+
+            ws.onmessage = (event) => {
+                let data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch {
+                    return;
+                }
+                const li = document.createElement("li");
+                console.log(data)
+                if (data.type === "message") {
+                    li.textContent = `💬 [${data.username}]: ${data.message}`;
+                } else if (data.type === "info") {
+                    li.textContent = `ℹ️ ${data.message}`;
+
+                    if (Array.isArray(data.users)) {
+                        const ul = document.getElementById("userlist");
+                        ul.innerHTML = "";
+                        data.users.forEach(user => {
+                            const li2 = document.createElement("li");
+                            li2.textContent = String(user).trim();
+                            ul.appendChild(li2);
+                        });
+                    }
+                } else {
+                    // Ismeretlen event -> ne kerüljön be üres pontként
+                    return;
+                }
+
+                if (li.textContent && li.textContent.trim() !== "") {
+                    document.getElementById("messages").appendChild(li);
+                }
+            };
+
+            ws.onclose = () => {
+                const li = document.createElement("li");
+                li.textContent = "ℹ️ Kapcsolat bontva.";
+                document.getElementById("messages").appendChild(li);
+            };
+
+            ws.onerror = () => {
+                const li = document.createElement("li");
+                li.textContent = "ℹ️ WebSocket hiba történt.";
+                document.getElementById("messages").appendChild(li);
+            };
+        }
+
+        function sendMessage() {
+            const input = document.getElementById("messageInput");
+            if (input.value.trim() !== "") {
+                ws.send(JSON.stringify({ type: "message", message: input.value }));
+                input.value = "";
+            }
+        }
+
+        document.getElementById("messageInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") sendMessage();
+        });
+    </script>
+</body>
+
+</html>
